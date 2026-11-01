@@ -23,8 +23,10 @@ HAND_LOST_FRAMES = 3               # frames without an active hand = "left the f
 RELEASE_FRAMES = 4                 # frames of no/other sign after a lock before the same sign may repeat
 
 CONFIDENCE_THRESHOLD = 0.75        # top-class probability threshold for static letters (reject unknowns)
+CONFIDENCE_THRESHOLD_RELAXED = 0.65 # relaxed threshold when prediction has decisive margin
 CONFIDENCE_THRESHOLD_WORD = 0.50   # probability threshold for 57-class temporal word sequences
 MARGIN_THRESHOLD = 0.10            # margin between top-1 and top-2 probabilities for letters
+MARGIN_THRESHOLD_RELAXED = 0.20    # decisive margin between top-1 and top-2 for confident classification
 MARGIN_THRESHOLD_WORD = 0.06       # margin between top-1 and top-2 for words
 DEFAULT_MAX_CENTROID_DISTANCE = 11.5  # fallback maximum Euclidean distance to class centroid
 

@@ -1,7 +1,7 @@
 {
   "baseline": {
     "test_samples": 4902,
-    "eval_time_seconds": 6.116,
+    "eval_time_seconds": 4.221,
     "acc_xgboost": 0.8743,
     "acc_stgcn": 0.8203,
     "acc_hybrid": 0.8829,
@@ -233,14 +233,14 @@
   "robustness": {
     "baseline_acc": 0.8829,
     "noise_sigma_0.01": {
-      "accuracy": 0.8576,
-      "drop": 0.0253,
-      "retention_rate": 0.9713
+      "accuracy": 0.8568,
+      "drop": 0.0261,
+      "retention_rate": 0.9704
     },
     "noise_sigma_0.02": {
-      "accuracy": 0.8413,
-      "drop": 0.0416,
-      "retention_rate": 0.9529
+      "accuracy": 0.8458,
+      "drop": 0.0371,
+      "retention_rate": 0.9579
     },
     "rotate_15_deg": {
       "accuracy": 0.8548,
@@ -290,8 +290,8 @@
       "rejection_reason": "invalid_input"
     },
     "one_hand_absent": {
-      "letter": "?",
-      "confidence": 0.5901
+      "letter": "A",
+      "confidence": 0.6981
     },
     "nan_array": {
       "letter": "?",
@@ -310,7 +310,7 @@
     }
   },
   "out_of_distribution": {
-    "random_noise_rejection_rate": 0.99,
+    "random_noise_rejection_rate": 0.82,
     "resting_hand_detected_as_idle": true,
     "neutral_open_palms_detected": false,
     "centroid_false_reject_rate_on_true_class": 0.0

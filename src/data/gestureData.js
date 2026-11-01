@@ -130,11 +130,11 @@ export const ISL_ALPHABET_DATA = [
     lh: 'Flat Palm ✋',
     rh: 'Trace J Hook ✍️',
     hands: '2-Hand ISL (Lesson 1)',
-    description: 'Right index finger traces a curved J motion onto open left palm.',
+    description: 'Right index finger traces a curved J hook into the open left palm (or hold index at center palm pointing down).',
     steps: [
-      'Hold open left palm facing up',
-      'Place right index finger at top center of left palm',
-      'Trace a sharp J hook downward onto palm'
+      'Hold open left palm facing up or toward camera',
+      'Place right index finger at center of left palm (curling downwards into J)',
+      'Hold steady at center-lower palm for clear camera recognition'
     ]
   },
   {
@@ -182,11 +182,11 @@ export const ISL_ALPHABET_DATA = [
     lh: 'Flat Palm ✋',
     rh: '2-Fingers ✌️',
     hands: '2-Hand ISL (Lesson 1)',
-    description: 'Two fingers (index and middle) of right hand laid across open left palm.',
+    description: 'Two fingers (index and middle) laid flat across open left palm (ring and pinky tucked into fist).',
     steps: [
-      'Hold left hand open flat horizontally',
-      'Lay right index and middle fingers across left palm',
-      'Keep two fingers pressed against left palm'
+      'Hold left palm open and flat horizontally facing up/camera',
+      'Extend right index and middle fingers (tuck ring and pinky into fist)',
+      'Lay both extended fingers flat across center of left palm and hold steady'
     ]
   },
   {
@@ -296,14 +296,14 @@ export const ISL_ALPHABET_DATA = [
   {
     letter: 'W',
     symbol: '👐',
-    lh: 'W Interlock 👐',
-    rh: 'W Interlock 👐',
-    hands: '2-Hand ISL (Lesson 1)',
-    description: 'Fingers of both hands interlocked facing forward forming W peaks.',
+    lh: 'W Interlock / 3-Fingers 👐',
+    rh: 'W Interlock / 3-Fingers 👐',
+    hands: '2-Hand or 1-Hand ISL',
+    description: 'Form W peaks by loosely interlocking fingers facing forward, or extend 3 fingers (index, middle, ring) upright with thumb over pinky.',
     steps: [
-      'Bring both open palms facing each other',
-      'Interlock fingers loosely at angles',
-      'Form three distinct W peak points'
+      'Bring both open palms facing forward with fingers crossing into three W peaks',
+      'Or show 3 fingers upright (index, middle, ring) with thumb holding pinky folded',
+      'Hold hands upright and steady in clear view of camera'
     ]
   },
   {

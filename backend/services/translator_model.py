@@ -26,11 +26,21 @@ import numpy as np
 
 try:
     from .feature_extractor import extract_features, NUM_EXTRACTED_FEATURES, NUM_RAW_FEATURES
-    from .gesture_config import CONFIDENCE_THRESHOLD, MARGIN_THRESHOLD
+    from .gesture_config import (
+        CONFIDENCE_THRESHOLD,
+        CONFIDENCE_THRESHOLD_RELAXED,
+        MARGIN_THRESHOLD,
+        MARGIN_THRESHOLD_RELAXED,
+    )
     from .gesture_pipeline import CentroidValidator
 except ImportError:
     from services.feature_extractor import extract_features, NUM_EXTRACTED_FEATURES, NUM_RAW_FEATURES
-    from services.gesture_config import CONFIDENCE_THRESHOLD, MARGIN_THRESHOLD
+    from services.gesture_config import (
+        CONFIDENCE_THRESHOLD,
+        CONFIDENCE_THRESHOLD_RELAXED,
+        MARGIN_THRESHOLD,
+        MARGIN_THRESHOLD_RELAXED,
+    )
     from services.gesture_pipeline import CentroidValidator
 
 logger = logging.getLogger(__name__)
@@ -58,6 +68,36 @@ MENDELEY_CSV = os.path.join(
     os.path.dirname(__file__), '..', '..', 'dataset',
     'Mendeley_ISL', 'extracted', 'ISL_Mendeley_Alphabets.csv'
 )
+
+# Default ISL reference postures for heuristic fallback (Mendeley ISL standard)
+DEFAULT_ISL_POSTURES = {
+    'A': {'left_hand_posture': 'flat palm', 'right_hand_posture': 'fist touch thumb', 'hand_system': 'two-hand'},
+    'B': {'left_hand_posture': 'flat palm', 'right_hand_posture': 'fist fingers touch', 'hand_system': 'two-hand'},
+    'C': {'left_hand_posture': 'c-shape', 'right_hand_posture': 'c-shape', 'hand_system': 'single-hand'},
+    'D': {'left_hand_posture': 'index up', 'right_hand_posture': 'semicircle touch index', 'hand_system': 'two-hand'},
+    'E': {'left_hand_posture': 'flat palm', 'right_hand_posture': 'touch index', 'hand_system': 'two-hand'},
+    'F': {'left_hand_posture': 'cross', 'right_hand_posture': 'cross', 'hand_system': 'two-hand'},
+    'G': {'left_hand_posture': 'fist', 'right_hand_posture': 'fist', 'hand_system': 'two-hand'},
+    'H': {'left_hand_posture': 'flat palm', 'right_hand_posture': 'sweep palm', 'hand_system': 'two-hand'},
+    'I': {'left_hand_posture': 'flat palm', 'right_hand_posture': 'touch middle', 'hand_system': 'two-hand'},
+    'J': {'left_hand_posture': 'flat palm', 'right_hand_posture': 'trace j hook index palm', 'hand_system': 'two-hand'},
+    'K': {'left_hand_posture': 'index up', 'right_hand_posture': 'v-shape touch', 'hand_system': 'two-hand'},
+    'L': {'left_hand_posture': 'l-shape', 'right_hand_posture': 'flat palm base', 'hand_system': 'two-hand'},
+    'M': {'left_hand_posture': 'flat palm', 'right_hand_posture': 'three fingers palm', 'hand_system': 'two-hand'},
+    'N': {'left_hand_posture': 'flat palm', 'right_hand_posture': 'two fingers palm v-shape', 'hand_system': 'two-hand'},
+    'O': {'left_hand_posture': 'flat palm', 'right_hand_posture': 'touch ring', 'hand_system': 'two-hand'},
+    'P': {'left_hand_posture': 'index up', 'right_hand_posture': 'circle touch index', 'hand_system': 'two-hand'},
+    'Q': {'left_hand_posture': 'flat palm', 'right_hand_posture': 'hook thumb', 'hand_system': 'two-hand'},
+    'R': {'left_hand_posture': 'flat palm', 'right_hand_posture': 'curved index palm', 'hand_system': 'two-hand'},
+    'S': {'left_hand_posture': 'flat palm', 'right_hand_posture': 'touch pinky', 'hand_system': 'two-hand'},
+    'T': {'left_hand_posture': 'flat palm edge', 'right_hand_posture': 'index touch edge', 'hand_system': 'two-hand'},
+    'U': {'left_hand_posture': 'flat palm', 'right_hand_posture': 'touch pinky tip', 'hand_system': 'two-hand'},
+    'V': {'left_hand_posture': 'flat palm', 'right_hand_posture': 'v-shape', 'hand_system': 'two-hand'},
+    'W': {'left_hand_posture': 'flat palm', 'right_hand_posture': 'w-peaks', 'hand_system': 'two-hand'},
+    'X': {'left_hand_posture': 'index up', 'right_hand_posture': 'index cross', 'hand_system': 'two-hand'},
+    'Y': {'left_hand_posture': 'flat palm', 'right_hand_posture': 'v-shape thumb index palm', 'hand_system': 'two-hand'},
+    'Z': {'left_hand_posture': 'flat palm', 'right_hand_posture': 'bent palm edge', 'hand_system': 'two-hand'},
+}
 
 # ISL alphabet + digit labels (36 classes: A-Z then 0-9)
 ISL_LABELS: list[str] = [str(c) for c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789']
@@ -183,6 +223,7 @@ class TranslatorModel:
         self.mendeley_ref = {}
         self.metadata = {}
         self.centroid_validator = CentroidValidator()
+        self._load_mendeley_ref()
         self._load()
 
     def _load(self):
@@ -202,6 +243,7 @@ class TranslatorModel:
         self.mode = 'heuristic'
         self.metadata = {}
         self.mendeley_ref = {}
+        self._load_mendeley_ref()
 
         # Load ST-GCN if available
         if os.path.exists(STGCN_MODEL_PATH):
@@ -287,9 +329,10 @@ class TranslatorModel:
         logger.info("Running in HEURISTIC mode (no trained model found).")
 
     def _load_mendeley_ref(self):
-        """Parse the Mendeley CSV into a lookup dictionary."""
+        """Parse the Mendeley CSV into a lookup dictionary, falling back to built-in ISL reference postures."""
         if not os.path.exists(MENDELEY_CSV):
-            logger.warning(f"Mendeley CSV not found at {MENDELEY_CSV}")
+            logger.info(f"Mendeley CSV not found at {MENDELEY_CSV}; loading {len(DEFAULT_ISL_POSTURES)} built-in reference postures.")
+            self.mendeley_ref = dict(DEFAULT_ISL_POSTURES)
             return
 
         try:
@@ -307,6 +350,7 @@ class TranslatorModel:
             logger.info(f"Loaded {len(self.mendeley_ref)} Mendeley ISL letter references.")
         except Exception as e:
             logger.error(f"Error loading Mendeley CSV: {e}")
+            self.mendeley_ref = dict(DEFAULT_ISL_POSTURES)
 
     def predict(self, landmarks, body_anchors=None):
         """
@@ -350,6 +394,12 @@ class TranslatorModel:
             right_active = np.any(arr_norm[:, 63:] != 0)
             is_single_hand = (left_active and not right_active) or (right_active and not left_active)
 
+            # Adaptive weights: for single-hand gestures, ST-GCN receives an empty second-hand subgraph,
+            # so XGBoost 208-D invariant features provide superior confidence calibration.
+            xgb_weight = 0.85 if is_single_hand else self.HYBRID_XGB_WEIGHT
+            stgcn_weight = 0.15 if is_single_hand else self.HYBRID_STGCN_WEIGHT
+            temperature = 1.00 if is_single_hand else self.HYBRID_TEMPERATURE
+
             # 1. Primary orientation pass (both models evaluated on original input)
             feat_primary = extract_features(arr_norm)
             probs_xgb = self.xgb_model.predict_proba(feat_primary)[0]
@@ -357,14 +407,13 @@ class TranslatorModel:
             tensor_in = torch.tensor(arr_norm, dtype=torch.float32)
             with torch.no_grad():
                 logits = self.stgcn_model(tensor_in)
-                probs_stgcn = torch.softmax(logits / self.HYBRID_TEMPERATURE, dim=1).numpy()[0]
+                probs_stgcn = torch.softmax(logits / temperature, dim=1).numpy()[0]
 
-            probs_primary = (self.HYBRID_XGB_WEIGHT * probs_xgb) + (self.HYBRID_STGCN_WEIGHT * probs_stgcn)
+            probs_primary = (xgb_weight * probs_xgb) + (stgcn_weight * probs_stgcn)
             conf_primary = float(np.max(probs_primary))
 
-            # 2. Only evaluate swapped pass if primary confidence is uncertain (< 0.55, or < 0.65 for single-hand)
-            # This cuts backend latency in half for clear signs and prevents redundant inference
-            if (is_single_hand and conf_primary < 0.65) or conf_primary < 0.55:
+            # 2. Evaluate swapped pass if primary confidence is uncertain (< CONFIDENCE_THRESHOLD)
+            if conf_primary < CONFIDENCE_THRESHOLD:
                 swapped = np.zeros_like(arr_norm)
                 swapped[:, :63] = arr_norm[:, 63:]
                 swapped[:, 63:] = arr_norm[:, :63]
@@ -374,9 +423,9 @@ class TranslatorModel:
                 tensor_swapped = torch.tensor(swapped, dtype=torch.float32)
                 with torch.no_grad():
                     logits_swapped = self.stgcn_model(tensor_swapped)
-                    probs_stgcn_swapped = torch.softmax(logits_swapped / self.HYBRID_TEMPERATURE, dim=1).numpy()[0]
+                    probs_stgcn_swapped = torch.softmax(logits_swapped / temperature, dim=1).numpy()[0]
 
-                probs_swapped = (self.HYBRID_XGB_WEIGHT * probs_xgb_swapped) + (self.HYBRID_STGCN_WEIGHT * probs_stgcn_swapped)
+                probs_swapped = (xgb_weight * probs_xgb_swapped) + (stgcn_weight * probs_stgcn_swapped)
                 conf_swapped = float(np.max(probs_swapped))
 
                 # Choose ONE consistent orientation for the entire ensemble
@@ -386,6 +435,23 @@ class TranslatorModel:
                     probs = probs_primary
             else:
                 probs = probs_primary
+
+            # 3. For contact gestures where hands overlap or one hand obscures another,
+            # evaluate dominant sub-hands if confidence remains low (< 0.50)
+            if left_active and right_active and np.max(probs) < 0.50:
+                h_left_single = np.zeros_like(arr_norm)
+                h_left_single[:, :63] = arr_norm[:, :63]
+                f_l = extract_features(h_left_single)
+                p_l = self.xgb_model.predict_proba(f_l)[0]
+                if np.max(p_l) > np.max(probs):
+                    probs = p_l
+
+                h_right_single = np.zeros_like(arr_norm)
+                h_right_single[:, 63:] = arr_norm[:, 63:]
+                f_r = extract_features(h_right_single)
+                p_r = self.xgb_model.predict_proba(f_r)[0]
+                if np.max(p_r) > np.max(probs):
+                    probs = p_r
 
             sorted_indices = np.argsort(probs)[::-1]
             top_idx = int(sorted_indices[0])
@@ -404,15 +470,24 @@ class TranslatorModel:
             norm_first = arr_norm[0] if arr_norm.ndim > 1 else arr_norm
             val_ok, dist, dist_thresh, r_reason = self.centroid_validator.validate(norm_first, letter)
 
-            is_rejected = bool(confidence < CONFIDENCE_THRESHOLD or margin < MARGIN_THRESHOLD or not val_ok or letter == '?')
+            # Accept if meets standard threshold OR relaxed threshold with decisive margin
+            is_accepted = bool(
+                ((confidence >= CONFIDENCE_THRESHOLD and margin >= MARGIN_THRESHOLD) or
+                 (confidence >= CONFIDENCE_THRESHOLD_RELAXED and margin >= MARGIN_THRESHOLD_RELAXED))
+                and val_ok and letter != '?'
+            )
+            is_rejected = not is_accepted
+
             rejection_reason = None
             if is_rejected:
-                if confidence < CONFIDENCE_THRESHOLD:
+                if not val_ok:
+                    rejection_reason = r_reason
+                elif confidence < CONFIDENCE_THRESHOLD_RELAXED:
                     rejection_reason = 'low_confidence'
                 elif margin < MARGIN_THRESHOLD:
                     rejection_reason = 'low_margin'
-                elif not val_ok:
-                    rejection_reason = r_reason
+                elif confidence < CONFIDENCE_THRESHOLD and margin < MARGIN_THRESHOLD_RELAXED:
+                    rejection_reason = 'low_confidence'
                 else:
                     rejection_reason = 'unknown_gesture'
 
@@ -494,15 +569,24 @@ class TranslatorModel:
             norm_first = arr[0] if arr.ndim > 1 else arr
             val_ok, dist, dist_thresh, r_reason = self.centroid_validator.validate(norm_first, letter)
 
-            is_rejected = bool(confidence < CONFIDENCE_THRESHOLD or margin < MARGIN_THRESHOLD or not val_ok or letter == '?')
+            # Accept if meets standard threshold OR relaxed threshold with decisive margin
+            is_accepted = bool(
+                ((confidence >= CONFIDENCE_THRESHOLD and margin >= MARGIN_THRESHOLD) or
+                 (confidence >= CONFIDENCE_THRESHOLD_RELAXED and margin >= MARGIN_THRESHOLD_RELAXED))
+                and val_ok and letter != '?'
+            )
+            is_rejected = not is_accepted
+
             rejection_reason = None
             if is_rejected:
-                if confidence < CONFIDENCE_THRESHOLD:
+                if not val_ok:
+                    rejection_reason = r_reason
+                elif confidence < CONFIDENCE_THRESHOLD_RELAXED:
                     rejection_reason = 'low_confidence'
                 elif margin < MARGIN_THRESHOLD:
                     rejection_reason = 'low_margin'
-                elif not val_ok:
-                    rejection_reason = r_reason
+                elif confidence < CONFIDENCE_THRESHOLD and margin < MARGIN_THRESHOLD_RELAXED:
+                    rejection_reason = 'low_confidence'
                 else:
                     rejection_reason = 'unknown_gesture'
 
@@ -555,8 +639,8 @@ class TranslatorModel:
 
             conf_primary = float(np.max(probs))
 
-            # Only evaluate alternate hand slot arrangement if primary placement is uncertain
-            if (is_single_hand and conf_primary < 0.65) or conf_primary < 0.55:
+            # Only evaluate alternate hand slot arrangement if primary placement is uncertain (< CONFIDENCE_THRESHOLD)
+            if conf_primary < CONFIDENCE_THRESHOLD:
                 swapped = np.zeros_like(arr)
                 swapped[:, :63] = arr[:, 63:]
                 swapped[:, 63:] = arr[:, :63]
@@ -598,15 +682,24 @@ class TranslatorModel:
             norm_first = arr[0] if arr.ndim > 1 else arr
             val_ok, dist, dist_thresh, r_reason = self.centroid_validator.validate(norm_first, letter)
 
-            is_rejected = bool(confidence < CONFIDENCE_THRESHOLD or margin < MARGIN_THRESHOLD or not val_ok or letter == '?')
+            # Accept if meets standard threshold OR relaxed threshold with decisive margin
+            is_accepted = bool(
+                ((confidence >= CONFIDENCE_THRESHOLD and margin >= MARGIN_THRESHOLD) or
+                 (confidence >= CONFIDENCE_THRESHOLD_RELAXED and margin >= MARGIN_THRESHOLD_RELAXED))
+                and val_ok and letter != '?'
+            )
+            is_rejected = not is_accepted
+
             rejection_reason = None
             if is_rejected:
-                if confidence < CONFIDENCE_THRESHOLD:
+                if not val_ok:
+                    rejection_reason = r_reason
+                elif confidence < CONFIDENCE_THRESHOLD_RELAXED:
                     rejection_reason = 'low_confidence'
                 elif margin < MARGIN_THRESHOLD:
                     rejection_reason = 'low_margin'
-                elif not val_ok:
-                    rejection_reason = r_reason
+                elif confidence < CONFIDENCE_THRESHOLD and margin < MARGIN_THRESHOLD_RELAXED:
+                    rejection_reason = 'low_confidence'
                 else:
                     rejection_reason = 'unknown_gesture'
 
@@ -674,15 +767,24 @@ class TranslatorModel:
             norm_first = arr[0] if arr.ndim > 1 else arr
             val_ok, dist, dist_thresh, r_reason = self.centroid_validator.validate(norm_first, letter)
 
-            is_rejected = bool(confidence < CONFIDENCE_THRESHOLD or margin < MARGIN_THRESHOLD or not val_ok or letter == '?')
+            # Accept if meets standard threshold OR relaxed threshold with decisive margin
+            is_accepted = bool(
+                ((confidence >= CONFIDENCE_THRESHOLD and margin >= MARGIN_THRESHOLD) or
+                 (confidence >= CONFIDENCE_THRESHOLD_RELAXED and margin >= MARGIN_THRESHOLD_RELAXED))
+                and val_ok and letter != '?'
+            )
+            is_rejected = not is_accepted
+
             rejection_reason = None
             if is_rejected:
-                if confidence < CONFIDENCE_THRESHOLD:
+                if not val_ok:
+                    rejection_reason = r_reason
+                elif confidence < CONFIDENCE_THRESHOLD_RELAXED:
                     rejection_reason = 'low_confidence'
                 elif margin < MARGIN_THRESHOLD:
                     rejection_reason = 'low_margin'
-                elif not val_ok:
-                    rejection_reason = r_reason
+                elif confidence < CONFIDENCE_THRESHOLD and margin < MARGIN_THRESHOLD_RELAXED:
+                    rejection_reason = 'low_confidence'
                 else:
                     rejection_reason = 'unknown_gesture'
 
@@ -951,6 +1053,38 @@ class TranslatorModel:
             # thumb-to-index touch. Fixed to use the same-hand feature.
             is_isl_f = features['r_index_thumb_touch'] < THUMB_INDEX_TOUCH_THRESHOLD and features['r_middle_ext']
             score += 10.0 if is_isl_f else ((1.0 if features['r_index_ext'] or features['r_middle_ext'] else 0.0) * 2.0)
+
+        # Specific heuristic boosts for letters with distinctive finger patterns (J, N, W)
+        if letter == 'J':
+            # Right index pointing at or tracing center of left palm, or single-hand hook
+            if features.get('r_index_ext') and not features.get('r_ring_ext') and not features.get('r_pinky_ext'):
+                score += 2.0
+                if features.get('l_openness', 0) > 0.4 and features.get('r_index_to_l_palm', 99) < 1.4:
+                    score += 3.0
+            elif features.get('l_index_ext') and not features.get('l_ring_ext') and not features.get('l_pinky_ext'):
+                score += 2.0
+                if features.get('r_openness', 0) > 0.4 and features.get('l_index_to_r_palm', 99) < 1.4:
+                    score += 3.0
+
+        elif letter == 'N':
+            # Two fingers (index & middle) extended, ring & pinky folded, resting on opposite flat palm or held out
+            r_two_fingers = features.get('r_index_ext') and features.get('r_middle_ext') and not features.get('r_ring_ext') and not features.get('r_pinky_ext')
+            l_two_fingers = features.get('l_index_ext') and features.get('l_middle_ext') and not features.get('l_ring_ext') and not features.get('l_pinky_ext')
+            if r_two_fingers:
+                score += 2.5
+                if features.get('l_openness', 0) > 0.4 and features.get('r_index_to_l_palm', 99) < 1.4:
+                    score += 3.5
+            elif l_two_fingers:
+                score += 2.5
+                if features.get('r_openness', 0) > 0.4 and features.get('l_index_to_r_palm', 99) < 1.4:
+                    score += 3.5
+
+        elif letter == 'W':
+            # Three fingers (index, middle, ring) extended upright, pinky curled/held by thumb
+            r_three_fingers = features.get('r_index_ext') and features.get('r_middle_ext') and features.get('r_ring_ext') and not features.get('r_pinky_ext')
+            l_three_fingers = features.get('l_index_ext') and features.get('l_middle_ext') and features.get('l_ring_ext') and not features.get('l_pinky_ext')
+            if r_three_fingers or l_three_fingers:
+                score += 4.0
 
         return score
 

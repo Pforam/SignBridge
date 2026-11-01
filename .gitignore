@@ -1,5 +1,10 @@
+# ==========================================
+# SignBridge - Git ignore rules
+# Keep private datasets and local artifacts out
+# ==========================================
+
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,15 +12,16 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# Node.js dependencies and build output
+node_modules/
+dist/
+dist-ssr/
 *.local
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
@@ -23,38 +29,97 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment Variables & Secrets
+# Environment variables and secrets
 .env
+.env.*
 *.env
 backend/.env
+!.env.example
 
-# Python & Virtual Environments
+# Python cache and compiled files
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Python virtual environments
 .venv/
 venv/
 ENV/
+env/
 
-# Database Files
+# Database files
 *.db
+*.sqlite
 *.sqlite3
 backend/database/*.db
 
-# Large Raw Datasets, Videos & Archives
-dataset/RealSign-Indian-Sign-Language-Dataset-main/
-dataset/ISL self made dataset/
-dataset/Words and Phrases/
+# ==========================================
+# PRIVATE DATASETS - DO NOT COMMIT
+# These folders are intentionally excluded.
+# ==========================================
+
+# All dataset contents
+dataset/
+datasets/
 Dataset_Words/
+dataset_words/
+dataset_words_test/
 Words/
 dataset_2/
-*.zip
-!dataset/Mendeley_ISL/ISL_Dataset.zip
-backend/models/*_backup.pkl
-backend/models/*_backup.pt
+
+# Extracted / generated landmark data and experiments
+landmark_output/
+synthetic_experiment/
+
+# Backend-collected private data
 backend/dataset_collected/
 backend/dataset_words/
+
+# Dataset archives (no dataset ZIP is allowlisted)
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+
+# Common raw dataset media (also protects files
+# accidentally placed outside the dataset folders)
+*.mp4
+*.mov
+*.avi
+
+# ==========================================
+# Model backups and generated artifacts
+# ==========================================
+
+backend/models/*_backup.pkl
+backend/models/*_backup.pt
+
+# Graph / analysis caches and scratch work
 graphify-out/cache/
 graphify-out/20*/
 scratch/
 
+# Operating system files
+Thumbs.db
+desktop.ini
+
+# Private experimental datasets and backups
+backend/backup_before_mediapipe_training/
+backend/dataset_words_mediapipe/
+
+# Generated model evaluation outputs
+backend/models/confusion_matrix.csv
+backend/models/confusion_matrix.png
+backend/models/holistic_confusion_matrix.csv
+backend/models/holistic_word_meta.json
+backend/models/isl_cnn_lstm_word_model_v2.pt
+backend/models/isl_holistic_word_model.pt
+backend/models/word_thresholds.json
+
+# Temporary backups
+*.backup
+*.backup.*

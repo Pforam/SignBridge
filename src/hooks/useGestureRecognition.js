@@ -1178,12 +1178,13 @@ export function useGestureRecognition({ enabled = false, initialMode = 'letter',
       });
 
       // Handle confidence rejection, margin rejection, or out-of-dataset centroid rejection
+      const isHighConf = conf >= GESTURE_CONFIG.CONFIDENCE_THRESHOLD_LETTER && margin >= GESTURE_CONFIG.MARGIN_THRESHOLD;
+      const isHighMargin = conf >= (GESTURE_CONFIG.CONFIDENCE_THRESHOLD_LETTER_RELAXED || 0.65) && margin >= (GESTURE_CONFIG.MARGIN_THRESHOLD_RELAXED || 0.20);
       const isVal = Boolean(
         !prediction.rejected &&
         prediction.letter &&
         prediction.letter !== '?' &&
-        conf >= GESTURE_CONFIG.CONFIDENCE_THRESHOLD_LETTER &&
-        margin >= GESTURE_CONFIG.MARGIN_THRESHOLD &&
+        (isHighConf || isHighMargin) &&
         dist <= GESTURE_CONFIG.MAX_CENTROID_DISTANCE
       );
 

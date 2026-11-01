@@ -21,9 +21,30 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# MODEL_DIR = os.path.join(os.path.dirname(__file__), '..', 'models')
+# CNN_LSTM_MODEL_PATH = os.path.join(MODEL_DIR, 'isl_cnn_lstm_word_model.pt')
+# CNN_LSTM_META_PATH = os.path.join(MODEL_DIR, 'cnn_lstm_training_meta.json')
+
 MODEL_DIR = os.path.join(os.path.dirname(__file__), '..', 'models')
-CNN_LSTM_MODEL_PATH = os.path.join(MODEL_DIR, 'isl_cnn_lstm_word_model.pt')
-CNN_LSTM_META_PATH = os.path.join(MODEL_DIR, 'cnn_lstm_training_meta.json')
+
+CNN_LSTM_MODEL_PATH_V2 = os.path.join(
+    MODEL_DIR, 'isl_cnn_lstm_word_model_v2.pt'
+)
+
+CNN_LSTM_MODEL_PATH_LEGACY = os.path.join(
+    MODEL_DIR, 'isl_cnn_lstm_word_model.pt'
+)
+
+CNN_LSTM_MODEL_PATH = (
+    CNN_LSTM_MODEL_PATH_V2
+    if os.path.exists(CNN_LSTM_MODEL_PATH_V2)
+    else CNN_LSTM_MODEL_PATH_LEGACY
+)
+
+CNN_LSTM_META_PATH = os.path.join(
+    MODEL_DIR, 'cnn_lstm_training_meta.json'
+)
+
 PKL_MODEL_PATH = os.path.join(MODEL_DIR, 'isl_word_classifier.pkl')
 PKL_META_PATH = os.path.join(MODEL_DIR, 'word_training_meta.json')
 PT_MODEL_PATH = os.path.join(MODEL_DIR, 'isl_lstm_word_model.pt')
@@ -112,7 +133,7 @@ class WordRecognizer:
 
                 checkpoint = torch.load(CNN_LSTM_MODEL_PATH, map_location='cpu', weights_only=True)
 
-                if checkpoint.get('model_type') == 'cnn_bilstm':
+                if checkpoint.get('model_type') in ('cnn_bilstm', 'cnn_bigru'):
                     if os.path.exists(CNN_LSTM_META_PATH):
                         with open(CNN_LSTM_META_PATH, 'r', encoding='utf-8') as f:
                             self.metadata = json.load(f)
@@ -165,10 +186,50 @@ class WordRecognizer:
                                 pooled = torch.mean(lstm_out, dim=1)
                             return self.classifier(pooled)
 
-                    model = CNNBiLSTMWordClassifier(
-                        in_dim=input_dim, cnn_ch=cnn_channels, hid=hidden_dim,
-                        nc=num_classes, attn_enabled=use_attn
-                    )
+                    if checkpoint.get('model_type') == 'cnn_bigru':
+                        class CNNBiGRUWordClassifier(nn.Module):
+                            def __init__(self, in_dim=254, cnn_ch=96, hid=96, nc=17, nl=2, dp=0.3):
+                                super().__init__()
+                                self.cnn = nn.Sequential(
+                                    nn.Conv1d(in_dim, 64, kernel_size=3, padding=1),
+                                    nn.BatchNorm1d(64), nn.ReLU(),
+                                    nn.Conv1d(64, cnn_ch, kernel_size=3, padding=1),
+                                    nn.BatchNorm1d(cnn_ch), nn.ReLU(), nn.Dropout(0.2)
+                                )
+                                self.gru = nn.GRU(
+                                    input_size=cnn_ch, hidden_size=hid, num_layers=nl,
+                                    batch_first=True, bidirectional=True,
+                                    dropout=dp if nl > 1 else 0.0
+                                )
+                                self.attn = nn.Sequential(
+                                    nn.Linear(hid * 2, 64), nn.Tanh(), nn.Linear(64, 1)
+                                )
+                                self.classifier = nn.Sequential(
+                                    nn.BatchNorm1d(hid * 2), nn.Linear(hid * 2, 64),
+                                    nn.ReLU(), nn.Dropout(dp), nn.Linear(64, nc)
+                                )
+
+                            def forward(self, x):
+                                x_cnn = self.cnn(x.permute(0, 2, 1))
+                                gru_out, _ = self.gru(x_cnn.permute(0, 2, 1))
+                                weights = torch.softmax(self.attn(gru_out), dim=1)
+                                pooled = torch.sum(gru_out * weights, dim=1)
+                                return self.classifier(pooled)
+
+                        model = CNNBiGRUWordClassifier(
+                            in_dim=input_dim, cnn_ch=cnn_channels, hid=hidden_dim, nc=num_classes
+                        )
+                    else:
+                        model = CNNBiLSTMWordClassifier(
+                            in_dim=input_dim, cnn_ch=cnn_channels, hid=hidden_dim,
+                            nc=num_classes, attn_enabled=use_attn
+                        )
+                    # Handle attention-layer naming difference in the trained checkpoint
+                    state_dict = {
+                        key.replace("attn.attn.", "attn."): value
+                        for key, value in state_dict.items()
+                    }
+
                     model.load_state_dict(state_dict)
                     model.eval()
                     self.model = model
@@ -279,7 +340,9 @@ class WordRecognizer:
             return None
 
         try:
-            from services.translator_model import normalize_landmarks, normalize_landmarks_batch
+            from services.translator_model import normalize_landmarks_batch
+            from services.word_preprocessing import preprocess_word_sequence
+            from services.feature_extractor import transform_to_kinetic_invariants
 
             arr = np.asarray(frame_sequence, dtype=np.float32)
 
@@ -303,7 +366,10 @@ class WordRecognizer:
                     'all_scores': {},
                 }
 
-            # Vectorised normalisation — one numpy call for all 30 frames
+          # # Keep raw landmarks intact he            re.
+          # Each model receives the preprocessing used for its feature dimension.
+            # Keep raw 126-D coordinates for the motion gate. Feature preprocessing
+            # must exactly match the dimension used during training.
             norm_arr = normalize_landmarks_batch(arr)
             if norm_arr is None:
                 return {
@@ -335,12 +401,22 @@ class WordRecognizer:
                 probs = model.predict_proba(flat_in)[0]
             elif self.mode in ('pytorch', 'cnn_lstm'):
                 import torch
-                if getattr(self, 'input_dim', NUM_FEATURES) == 252:
-                    from services.feature_extractor import transform_to_kinetic_invariants
+                input_dim = getattr(self, 'input_dim', NUM_FEATURES)
+                if input_dim == 254:
+                    features = preprocess_word_sequence(
+                        arr[np.newaxis, ...], include_velocity=True, include_mask=True
+                    )[0]
+                elif input_dim == 128:
+                    features = preprocess_word_sequence(
+                        arr[np.newaxis, ...], include_velocity=False, include_mask=True
+                    )[0]
+                elif input_dim == 252:
                     kinetic_seq = transform_to_kinetic_invariants(norm_arr)
-                    input_data = kinetic_seq.reshape(1, SEQUENCE_LENGTH, 252)
+                    features = kinetic_seq
                 else:
-                    input_data = norm_arr.reshape(1, SEQUENCE_LENGTH, NUM_FEATURES)
+                    raise ValueError(f"Unsupported word-model input dimension: {input_dim}")
+
+                input_data = np.asarray(features, dtype=np.float32).reshape(1, SEQUENCE_LENGTH, input_dim)
                 tensor_in = torch.tensor(input_data, dtype=torch.float32)
                 with torch.no_grad():
                     logits = model(tensor_in)

@@ -199,7 +199,8 @@ def run_phase2a():
     }
     print(f"Evaluated {N} test samples in {t_elapsed:.2f}s ({N/t_elapsed:.1f} FPS):", flush=True)
     print(f"  XGB Acc: {acc_xgb:.4f} | ST-GCN Acc: {acc_stgcn:.4f} | Hybrid Acc: {acc_hybrid:.4f} | ECE: {ece_val:.4f}", flush=True)
-    print(f"  Top 5 confused pairs: {[p['pair'] + f' ({p['count']})' for p in top10_confused[:5]]}", flush=True)
+    top5_str = [f"{p['pair']} ({p['count']})" for p in top10_confused[:5]]
+    print(f"  Top 5 confused pairs: {top5_str}", flush=True)
 
     # 2. Robustness Perturbations (Vectorized)
     print("\n2. Evaluating Vectorized Robustness Perturbations...", flush=True)

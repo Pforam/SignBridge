@@ -23,10 +23,12 @@ export const GESTURE_CONFIG = {
   HAND_LOST_FRAMES: 3,               // Frames without an active hand before it counts as "left the frame"
   RELEASE_FRAMES: 4,                 // Frames of no/other sign after a lock before the same sign may be accepted again
 
-  // 4. Confidence & Ambiguity Thresholds (unchanged: these protect accuracy)
+  // 4. Confidence & Ambiguity Thresholds (calibrated for high accuracy and robust recognition)
   CONFIDENCE_THRESHOLD_LETTER: 0.75, // Top-class probability threshold for static letters
+  CONFIDENCE_THRESHOLD_LETTER_RELAXED: 0.65, // Relaxed threshold when decisive margin (gap) is demonstrated
   CONFIDENCE_THRESHOLD_WORD: 0.50,   // Probability threshold for 57-class whole-word sequences
   MARGIN_THRESHOLD: 0.10,            // Minimum gap between top-1 and top-2 probabilities for letters
+  MARGIN_THRESHOLD_RELAXED: 0.20,    // Decisive margin between top-1 and top-2 for confident classification
   MARGIN_THRESHOLD_WORD: 0.06,       // Minimum gap for words
   MIN_MOTION_VELOCITY: 0.025,        // Minimum wrist-relative joint displacement velocity for word gating
   MAX_WORD_ENTROPY: 2.20,            // Maximum distribution entropy tolerated before rejection
