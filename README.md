@@ -204,9 +204,9 @@ Refer to the backend scripts and project configuration for the current arguments
 Developed collaboratively by:
 
 - **Foram Patel**
-- **Stuti**
-- **Chintan**
-- **Parth**
+- **Stuti Mistry**
+- **Chintan Sharma**
+- **Parth Thakkar**
 
 ## Acknowledgements
 
